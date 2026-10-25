@@ -1,0 +1,21 @@
+# Maven
+**/target/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Lokalne konfiguracje i sekrety
+.env
+.env.*
+!.env.example
+**/application-local.properties
+**/application-local.yml
+**/application-local.yaml
+
+# Logi
+*.log
+
+# System
+.DS_Store
+Thumbs.db

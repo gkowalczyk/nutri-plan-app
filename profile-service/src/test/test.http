@@ -1,0 +1,14 @@
+### GET request to example server
+GET https://examples.http-client.intellij.net/get
+    ?generated-in=IntelliJ IDEA
+
+###
+PUT http://localhost:8091/api/profile
+Content-Type: application/json
+
+{
+  "displayName": "Grzegorz K",
+  "birthDate": "1990-01-02",
+  "heightCm": 189,
+  "nutritionObjective": "GAIN_WEIGHT"
+}
