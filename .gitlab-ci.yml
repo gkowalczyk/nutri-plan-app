@@ -1,0 +1,39 @@
+image: maven:3.9-eclipse-temurin-17
+
+stages:
+  - verify
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+
+  POSTGRES_DB: nutriplan_test
+  POSTGRES_USER: nutriplan_test
+  POSTGRES_PASSWORD: test_only_password
+
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nutriplan_test
+  SPRING_DATASOURCE_USERNAME: nutriplan_test
+  SPRING_DATASOURCE_PASSWORD: test_only_password
+
+cache:
+  paths:
+    - .m2/repository/
+
+verify:
+  stage: verify
+
+  services:
+    - name: postgres:17
+      alias: postgres
+
+  script:
+    - mvn --batch-mode --no-transfer-progress clean verify
+
+  artifacts:
+    when: always
+    expire_in: 7 days
+    reports:
+      junit:
+        - "**/target/surefire-reports/TEST-*.xml"
+        - "**/target/failsafe-reports/TEST-*.xml"
+    paths:
+      - profile-service/target/*.jar
