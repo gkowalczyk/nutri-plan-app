@@ -3,6 +3,7 @@ image: maven:3.9-eclipse-temurin-17
 stages:
   - verify
   - image
+  - deploy
 
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
@@ -74,3 +75,74 @@ build-image:
 
           rules:
             - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+
+
+deploy:
+                stage: deploy
+                image: alpine:3.22
+
+                cache: [ ]
+
+                needs:
+                  - job: build-image
+                    artifacts: false
+
+                resource_group: nutriplan-production
+
+                environment:
+                  name: production
+
+                rules:
+                  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+                    when: manual
+
+                allow_failure: false
+
+                before_script:
+                  - apk add --no-cache openssh-client
+                  - mkdir -p ~/.ssh
+                  - chmod 700 ~/.ssh
+                  - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519
+                  - chmod 600 ~/.ssh/id_ed25519
+                  - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts
+                  - chmod 644 ~/.ssh/known_hosts
+
+                script:
+                  - |
+                    printf '%s' "$CI_REGISTRY_PASSWORD" |
+                      ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+                        "$DEPLOY_USER@$DEPLOY_HOST" \
+                        "docker login '$CI_REGISTRY' -u '$CI_REGISTRY_USER' --password-stdin"
+
+                  - |
+                    ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+                      "$DEPLOY_USER@$DEPLOY_HOST" \
+                      bash -s -- "$CI_REGISTRY_IMAGE/profile-service:$CI_COMMIT_SHA" <<'REMOTE'
+                    set -eu
+
+                    cd /opt/nutriplan
+
+                    export PROFILE_SERVICE_IMAGE="$1"
+
+                    docker compose -f compose.app.yaml pull profile-service
+                    docker compose -f compose.app.yaml up -d --no-deps --force-recreate profile-service
+
+                    for attempt in $(seq 1 30); do
+                      if curl --fail --silent --max-time 2 \
+                        http://127.0.0.1:8091/actuator/health; then
+
+                        sed -i "s|^PROFILE_SERVICE_IMAGE=.*|PROFILE_SERVICE_IMAGE=$PROFILE_SERVICE_IMAGE|" .env
+
+                        echo
+                        echo "Deployment zakonczony poprawnie."
+                        exit 0
+                      fi
+
+                      sleep 2
+                    done
+
+                    docker compose -f compose.app.yaml logs --tail=100 profile-service
+                    echo "Aplikacja nie przeszla sprawdzenia health."
+                    exit 1
+                    REMOTE
