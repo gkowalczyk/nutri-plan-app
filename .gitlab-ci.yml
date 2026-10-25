@@ -2,6 +2,7 @@ image: maven:3.9-eclipse-temurin-17
 
 stages:
   - verify
+  - image
 
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
@@ -37,3 +38,39 @@ verify:
         - "**/target/failsafe-reports/TEST-*.xml"
     paths:
       - profile-service/target/*.jar
+
+build-image:
+          stage: image
+
+          image:
+            name: moby/buildkit:rootless
+            entrypoint: [ "" ]
+
+          needs:
+            - job: verify
+              artifacts: true
+
+          cache: [ ]
+
+          variables:
+            BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+
+          before_script:
+            - mkdir -p ~/.docker
+            - |
+              printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' \
+                "$CI_REGISTRY" \
+                "$CI_REGISTRY_USER" \
+                "$CI_REGISTRY_PASSWORD" \
+                > ~/.docker/config.json
+
+          script:
+            - |
+              buildctl-daemonless.sh build \
+                --frontend dockerfile.v0 \
+                --local context=profile-service \
+                --local dockerfile=profile-service \
+                --output "type=image,name=$CI_REGISTRY_IMAGE/profile-service:$CI_COMMIT_SHA,push=true"
+
+          rules:
+            - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
