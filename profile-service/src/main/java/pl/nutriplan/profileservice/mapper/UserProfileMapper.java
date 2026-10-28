@@ -7,19 +7,16 @@ import pl.nutriplan.profileservice.model.UserProfile;
 import pl.nutriplan.profileservice.service.UserProfileService;
 
 @Component
-@RequiredArgsConstructor
 public class UserProfileMapper {
-
-    private final UserProfileService userProfileService;
 
 
     public UserProfileDto toDto (UserProfile userProfile) {
         return new UserProfileDto(
-                userProfile.id(),
-                userProfile.displayName(),
-                userProfile.birthDate(),
-                userProfile.heightCm(),
-                userProfile.nutritionObjective()
+                userProfile.getId(),
+                userProfile.getDisplayName(),
+                userProfile.getBirthDate(),
+                userProfile.getHeightCm(),
+                userProfile.getNutritionObjective()
         );
     }
 }

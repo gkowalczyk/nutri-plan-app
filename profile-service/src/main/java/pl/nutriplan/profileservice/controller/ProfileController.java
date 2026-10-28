@@ -1,4 +1,4 @@
-package pl.nutriplan.profileservice;
+package pl.nutriplan.profileservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

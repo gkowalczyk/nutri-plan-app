@@ -12,3 +12,14 @@ Content-Type: application/json
   "heightCm": 189,
   "nutritionObjective": "GAIN_WEIGHT"
 }
+
+###
+PUT http://localhost:8091/api/profile
+Content-Type: application/json
+
+{
+"displayName": "Profil testowy",
+"birthDate": "1990-01-01",
+"heightCm": 182,
+"nutritionObjective": "GAIN_WEIGHT"
+}
