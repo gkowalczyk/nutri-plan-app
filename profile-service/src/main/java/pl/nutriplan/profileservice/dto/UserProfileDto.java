@@ -1,5 +1,6 @@
 package pl.nutriplan.profileservice.dto;
 
+import pl.nutriplan.profileservice.model.ActivityLevel;
 import pl.nutriplan.profileservice.model.NutritionObjective;
 
 import java.time.LocalDate;
@@ -10,6 +11,7 @@ public record UserProfileDto(
         String displayName,
         LocalDate birthDate,
         Integer heightCm,
-        NutritionObjective nutritionObjective
+        NutritionObjective nutritionObjective,
+        ActivityLevel activityLevel
 ) {
 }

@@ -34,7 +34,8 @@ public class UserProfileService {
                 "Grzegorz",
                 LocalDate.of(1990, 1, 1),
                 180,
-                NutritionObjective.MAINTAIN_WEIGHT
+                NutritionObjective.MAINTAIN_WEIGHT,
+                null
         );
         return userProfileRepository.save(profile);
     }
@@ -50,7 +51,8 @@ public class UserProfileService {
                 userProfileRequest.displayName().trim(),
                 userProfileRequest.birthDate(),
                 userProfileRequest.heightCm(),
-                userProfileRequest.nutritionObjective()
+                userProfileRequest.nutritionObjective(),
+                userProfileRequest.activityLevel()
         );
 
         return userProfileRepository.save(userProfile);

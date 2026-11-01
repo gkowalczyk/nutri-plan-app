@@ -16,7 +16,8 @@ public class UserProfileMapper {
                 userProfile.getDisplayName(),
                 userProfile.getBirthDate(),
                 userProfile.getHeightCm(),
-                userProfile.getNutritionObjective()
+                userProfile.getNutritionObjective(),
+                userProfile.getActivityLevel()
         );
     }
 }

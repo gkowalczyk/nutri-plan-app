@@ -20,6 +20,31 @@ Content-Type: application/json
 {
 "displayName": "Profil testowy",
 "birthDate": "1990-01-01",
-"heightCm": 182,
+"heightCm": 18,
 "nutritionObjective": "GAIN_WEIGHT"
 }
+
+
+###
+PUT http://localhost:8091/api/profile
+Content-Type: application/json
+
+{
+  "displayName": "Grzegorz",
+  "birthDate": "2000-01-01",
+  "heightCm": 180,
+  "nutritionObjective": "GAIN"
+}
+###
+PUT http://localhost:8091/api/profile
+Content-Type: application/json
+
+{
+"displayName": "Grzegorz",
+"birthDate": "1990-01-01",
+"heightCm": 182,
+"nutritionObjective": "GAIN_WEIGHT",
+"activityLevel": "MODERATELY_ACTIVE"
+}
+
+

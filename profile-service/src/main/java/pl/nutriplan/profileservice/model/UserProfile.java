@@ -38,6 +38,10 @@ public class UserProfile {
     @Column(nullable = false)
     private NutritionObjective nutritionObjective;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "activity_level")
+    private ActivityLevel activityLevel;
+
     public UserProfile(String displayName, LocalDate birthDate, Integer heightCm, NutritionObjective nutritionObjective) {
         this.displayName = displayName;
         this.birthDate = birthDate;
@@ -45,12 +49,13 @@ public class UserProfile {
         this.nutritionObjective = nutritionObjective;
     }
 
-    public UserProfile(UUID id, String userId, String displayName, LocalDate birthDate, Integer heightCm, NutritionObjective nutritionObjective) {
+    public UserProfile(UUID id, String userId, String displayName, LocalDate birthDate, Integer heightCm, NutritionObjective nutritionObjective, ActivityLevel activityLevel) {
         this.id = id;
         this.userId = userId;
         this.displayName = displayName;
         this.birthDate = birthDate;
         this.heightCm = heightCm;
         this.nutritionObjective = nutritionObjective;
+        this.activityLevel = activityLevel;
     }
 }
