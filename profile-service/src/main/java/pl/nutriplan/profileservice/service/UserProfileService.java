@@ -57,4 +57,5 @@ public class UserProfileService {
 
         return userProfileRepository.save(userProfile);
     }
+
 }
