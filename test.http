@@ -46,5 +46,46 @@ Content-Type: application/json
 "nutritionObjective": "GAIN_WEIGHT",
 "activityLevel": "MODERATELY_ACTIVE"
 }
+###
+POST http://localhost:8091/api/profile/weight-measurements
+Content-Type: application/json
+
+{
+  "weight": 82.40,
+  "measuredOn": "2026-11-07"
+}
+
+
+###
+DELETE http://localhost:8091/api/profile/weight-measurements/c9c91c9f-2a98-4671-9908-d347435d2956
+
+###
+PUT http://localhost:8091/api/profile/weight-measurements/76875132-8c1b-48ae-8045-b5eab7394b22
+Content-Type: application/json
+
+{
+  "weight": 81.40,
+  "measuredOn": "2026-11-01"
+}
+
+###
+GET http://localhost:8091/api/profile/weight-measurements
+
+###
+GET http://localhost:8091/api/profile/weight-measurements/getAll?from=2026-11-07&to=2026-11-08
+
+###
+POST http://localhost:8092/api/foods
+Content-Type: application/json
+
+{
+  "name": "Przykładowy produkt",
+  "caloriesPer100g": -550,
+  "proteinPer100g": 10.00,
+  "fatPer100g": 4.00,
+  "carbsPer100g": 26.00
+}
+
+
 
 

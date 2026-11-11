@@ -13,6 +13,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>profile-service</module>
+        <module>food-service</module>
     </modules>
     <name>NutriPlan</name>
     <description>Aplikacja do planowania diety i zapisywania posiłków</description>
