@@ -90,72 +90,96 @@ build-image:
             - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 
-
 deploy:
-                stage: deploy
-                image: alpine:3.22
+  stage: deploy
+  image: alpine:3.22
 
-                cache: [ ]
+  cache: []
 
-                needs:
-                  - job: build-image
-                    artifacts: false
+  needs:
+    - job: build-image
+      artifacts: false
 
-                resource_group: nutriplan-production
+  resource_group: nutriplan-production
 
-                environment:
-                  name: production
+  environment:
+    name: production
 
-                rules:
-                  - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-                    when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
 
-                allow_failure: false
+  allow_failure: false
 
-                before_script:
-                  - apk add --no-cache openssh-client
-                  - mkdir -p ~/.ssh
-                  - chmod 700 ~/.ssh
-                  - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519
-                  - chmod 600 ~/.ssh/id_ed25519
-                  - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts
-                  - chmod 644 ~/.ssh/known_hosts
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
 
-                script:
-                  - |
-                    printf '%s' "$CI_REGISTRY_PASSWORD" |
-                      ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-                        "$DEPLOY_USER@$DEPLOY_HOST" \
-                        "docker login '$CI_REGISTRY' -u '$CI_REGISTRY_USER' --password-stdin"
+  script:
+    - |
+      printf '%s' "$CI_REGISTRY_PASSWORD" |
+        ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+          "$DEPLOY_USER@$DEPLOY_HOST" \
+          "docker login '$CI_REGISTRY' -u '$CI_REGISTRY_USER' --password-stdin"
 
-                  - |
-                    ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-                      "$DEPLOY_USER@$DEPLOY_HOST" \
-                      bash -s -- "$CI_REGISTRY_IMAGE/profile-service:$CI_COMMIT_SHA" <<'REMOTE'
-                    set -eu
+    - |
+      ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+        "$DEPLOY_USER@$DEPLOY_HOST" \
+        bash -s -- \
+        "$CI_REGISTRY_IMAGE/profile-service:$CI_COMMIT_SHA" \
+        "$CI_REGISTRY_IMAGE/food-service:$CI_COMMIT_SHA" <<'REMOTE'
+      set -eu
 
-                    cd /opt/nutriplan
+      cd /opt/nutriplan
 
-                    export PROFILE_SERVICE_IMAGE="$1"
+      export PROFILE_SERVICE_IMAGE="$1"
+      export FOOD_SERVICE_IMAGE="$2"
 
-                    docker compose -f compose.app.yaml pull profile-service
-                    docker compose -f compose.app.yaml up -d --no-deps --force-recreate profile-service
+      docker compose -f compose.app.yaml pull profile-service food-service
 
-                    for attempt in $(seq 1 30); do
-                      if curl --fail --silent --max-time 2 \
-                        http://127.0.0.1:8091/actuator/health; then
+      docker compose -f compose.app.yaml up -d --no-deps \
+        profile-service food-service
 
-                        sed -i "s|^PROFILE_SERVICE_IMAGE=.*|PROFILE_SERVICE_IMAGE=$PROFILE_SERVICE_IMAGE|" .env
+      ready=false
 
-                        echo
-                        echo "Deployment zakonczony poprawnie."
-                        exit 0
-                      fi
+      for attempt in $(seq 1 60); do
+        if curl --fail --silent --output /dev/null --max-time 2 \
+             http://127.0.0.1:8091/actuator/health &&
+           curl --fail --silent --output /dev/null --max-time 2 \
+             http://127.0.0.1:8092/api/foods; then
+          ready=true
+          break
+        fi
 
-                      sleep 2
-                    done
+        sleep 2
+      done
 
-                    docker compose -f compose.app.yaml logs --tail=100 profile-service
-                    echo "Aplikacja nie przeszla sprawdzenia health."
-                    exit 1
-                    REMOTE
+      if [ "$ready" != true ]; then
+        docker compose -f compose.app.yaml logs --tail=100 \
+          profile-service food-service
+        echo "Sprawdzenie uruchomienia serwisow nie powiodlo sie."
+        exit 1
+      fi
+
+      env_temp=$(mktemp /opt/nutriplan/.env.deploy.XXXXXX)
+      trap 'rm -f "$env_temp"' EXIT
+
+      awk '
+        !/^PROFILE_SERVICE_IMAGE=/ &&
+        !/^FOOD_SERVICE_IMAGE=/
+      ' .env > "$env_temp"
+
+      printf '\nPROFILE_SERVICE_IMAGE=%s\nFOOD_SERVICE_IMAGE=%s\n' \
+        "$PROFILE_SERVICE_IMAGE" \
+        "$FOOD_SERVICE_IMAGE" >> "$env_temp"
+
+      chmod --reference=.env "$env_temp"
+      mv "$env_temp" .env
+
+      echo "Oba serwisy zostaly wdrozone poprawnie."
+      REMOTE
