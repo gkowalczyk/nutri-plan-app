@@ -8,11 +8,9 @@ stages:
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
 
-  POSTGRES_DB: nutriplan_test
   POSTGRES_USER: nutriplan_test
   POSTGRES_PASSWORD: test_only_password
 
-  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nutriplan_test
   SPRING_DATASOURCE_USERNAME: nutriplan_test
   SPRING_DATASOURCE_PASSWORD: test_only_password
 
@@ -23,22 +21,31 @@ cache:
 verify:
   stage: verify
 
+  parallel:
+    matrix:
+      - MODULE: profile-service
+        POSTGRES_DB: nutriplan_profile_test
+      - MODULE: food-service
+        POSTGRES_DB: nutriplan_food_test
+
   services:
     - name: postgres:17
       alias: postgres
 
   script:
-    - mvn --batch-mode --no-transfer-progress clean verify
+    - export SPRING_DATASOURCE_URL="jdbc:postgresql://postgres:5432/$POSTGRES_DB"
+    - mvn --batch-mode --no-transfer-progress -pl "$MODULE" -am clean verify
 
   artifacts:
+    name: "$MODULE-$CI_COMMIT_SHORT_SHA"
     when: always
     expire_in: 7 days
     reports:
       junit:
-        - "**/target/surefire-reports/TEST-*.xml"
-        - "**/target/failsafe-reports/TEST-*.xml"
+        - "$MODULE/target/surefire-reports/TEST-*.xml"
+        - "$MODULE/target/failsafe-reports/TEST-*.xml"
     paths:
-      - profile-service/target/*.jar
+      - "$MODULE/target/*.jar"
 
 build-image:
           stage: image
