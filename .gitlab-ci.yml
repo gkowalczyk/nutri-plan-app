@@ -79,6 +79,12 @@ build-image:
                 --local context=profile-service \
                 --local dockerfile=profile-service \
                 --output "type=image,name=$CI_REGISTRY_IMAGE/profile-service:$CI_COMMIT_SHA,push=true"
+              
+                buildctl-daemonless.sh build \
+                --frontend dockerfile.v0 \
+                --local context=food-service \
+                --local dockerfile=food-service \
+                --output "type=image,name=$CI_REGISTRY_IMAGE/food-service:$CI_COMMIT_SHA,push=true"
 
           rules:
             - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
