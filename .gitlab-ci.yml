@@ -27,6 +27,8 @@ verify:
         POSTGRES_DB: nutriplan_profile_test
       - MODULE: food-service
         POSTGRES_DB: nutriplan_food_test
+      - MODULE: meal-diary-service
+        POSTGRES_DB: nutriplan_meal_diary_test
 
   services:
     - name: postgres:17
@@ -48,47 +50,44 @@ verify:
       - "$MODULE/target/*.jar"
 
 build-image:
-          stage: image
+  stage: image
 
-          image:
-            name: moby/buildkit:rootless
-            entrypoint: [ "" ]
+  image:
+    name: moby/buildkit:rootless
+    entrypoint: [""]
 
-          needs:
-            - job: verify
-              artifacts: true
+  needs:
+    - job: verify
+      artifacts: true
 
-          cache: [ ]
+  cache: []
 
-          variables:
-            BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+  variables:
+    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
 
-          before_script:
-            - mkdir -p ~/.docker
-            - |
-              printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' \
-                "$CI_REGISTRY" \
-                "$CI_REGISTRY_USER" \
-                "$CI_REGISTRY_PASSWORD" \
-                > ~/.docker/config.json
+  before_script:
+    - mkdir -p ~/.docker
+    - |
+      printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' \
+        "$CI_REGISTRY" \
+        "$CI_REGISTRY_USER" \
+        "$CI_REGISTRY_PASSWORD" \
+        > ~/.docker/config.json
 
-          script:
-            - |
-              buildctl-daemonless.sh build \
-                --frontend dockerfile.v0 \
-                --local context=profile-service \
-                --local dockerfile=profile-service \
-                --output "type=image,name=$CI_REGISTRY_IMAGE/profile-service:$CI_COMMIT_SHA,push=true"
-              
-                buildctl-daemonless.sh build \
-                --frontend dockerfile.v0 \
-                --local context=food-service \
-                --local dockerfile=food-service \
-                --output "type=image,name=$CI_REGISTRY_IMAGE/food-service:$CI_COMMIT_SHA,push=true"
+  script:
+    - |
+      set -eu
 
-          rules:
-            - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      for module in profile-service food-service meal-diary-service; do
+        buildctl-daemonless.sh build \
+          --frontend dockerfile.v0 \
+          --local context="$module" \
+          --local dockerfile="$module" \
+          --output "type=image,name=$CI_REGISTRY_IMAGE/$module:$CI_COMMIT_SHA,push=true"
+      done
 
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 deploy:
   stage: deploy
@@ -132,18 +131,21 @@ deploy:
         "$DEPLOY_USER@$DEPLOY_HOST" \
         bash -s -- \
         "$CI_REGISTRY_IMAGE/profile-service:$CI_COMMIT_SHA" \
-        "$CI_REGISTRY_IMAGE/food-service:$CI_COMMIT_SHA" <<'REMOTE'
+        "$CI_REGISTRY_IMAGE/food-service:$CI_COMMIT_SHA" \
+        "$CI_REGISTRY_IMAGE/meal-diary-service:$CI_COMMIT_SHA" <<'REMOTE'
       set -eu
 
       cd /opt/nutriplan
 
       export PROFILE_SERVICE_IMAGE="$1"
       export FOOD_SERVICE_IMAGE="$2"
+      export MEAL_DIARY_SERVICE_IMAGE="$3"
 
-      docker compose -f compose.app.yaml pull profile-service food-service
+      docker compose -f compose.app.yaml pull \
+        profile-service food-service meal-diary-service
 
       docker compose -f compose.app.yaml up -d --no-deps \
-        profile-service food-service
+        profile-service food-service meal-diary-service
 
       ready=false
 
@@ -151,7 +153,9 @@ deploy:
         if curl --fail --silent --output /dev/null --max-time 2 \
              http://127.0.0.1:8091/actuator/health &&
            curl --fail --silent --output /dev/null --max-time 2 \
-             http://127.0.0.1:8092/api/foods; then
+             http://127.0.0.1:8092/api/foods &&
+           curl --fail --silent --output /dev/null --max-time 2 \
+             "http://127.0.0.1:8093/api/meals/summary?date=2026-11-17"; then
           ready=true
           break
         fi
@@ -161,7 +165,8 @@ deploy:
 
       if [ "$ready" != true ]; then
         docker compose -f compose.app.yaml logs --tail=100 \
-          profile-service food-service
+          profile-service food-service meal-diary-service
+
         echo "Sprawdzenie uruchomienia serwisow nie powiodlo sie."
         exit 1
       fi
@@ -171,15 +176,17 @@ deploy:
 
       awk '
         !/^PROFILE_SERVICE_IMAGE=/ &&
-        !/^FOOD_SERVICE_IMAGE=/
+        !/^FOOD_SERVICE_IMAGE=/ &&
+        !/^MEAL_DIARY_SERVICE_IMAGE=/
       ' .env > "$env_temp"
 
-      printf '\nPROFILE_SERVICE_IMAGE=%s\nFOOD_SERVICE_IMAGE=%s\n' \
+      printf '\nPROFILE_SERVICE_IMAGE=%s\nFOOD_SERVICE_IMAGE=%s\nMEAL_DIARY_SERVICE_IMAGE=%s\n' \
         "$PROFILE_SERVICE_IMAGE" \
-        "$FOOD_SERVICE_IMAGE" >> "$env_temp"
+        "$FOOD_SERVICE_IMAGE" \
+        "$MEAL_DIARY_SERVICE_IMAGE" >> "$env_temp"
 
       chmod --reference=.env "$env_temp"
       mv "$env_temp" .env
 
-      echo "Oba serwisy zostaly wdrozone poprawnie."
+      echo "Trzy serwisy zostaly wdrozone poprawnie."
       REMOTE
