@@ -85,6 +85,15 @@ Content-Type: application/json
   "fatPer100g": 4.00,
   "carbsPer100g": 26.00
 }
+###
+POST http://localhost:8093/api/meals
+Content-Type: application/json
+
+{
+  "foodProductId": "9a2ee834-8255-4c7d-86ca-1bb2c8d3c20e",
+  "eatenOn": "2026-11-17",
+  "grams": 150.00
+}
 
 
 
