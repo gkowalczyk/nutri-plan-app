@@ -67,4 +67,24 @@ public class MealEntry {
         this.fatGrams = fatGrams;
         this.carbsGrams = carbsGrams;
     }
+
+    public void updateMealEntry(
+            LocalDate eatenOn,
+            UUID foodProductId,
+            String foodProductName,
+            BigDecimal grams,
+            BigDecimal calories,
+            BigDecimal proteinGrams,
+            BigDecimal fatGrams,
+            BigDecimal carbsGrams
+    ) {
+        this.eatenOn = eatenOn;
+        this.foodProductId = foodProductId;
+        this.foodProductName = foodProductName;
+        this.grams = grams;
+        this.calories = calories;
+        this.proteinGrams = proteinGrams;
+        this.fatGrams = fatGrams;
+        this.carbsGrams = carbsGrams;
+    }
 }

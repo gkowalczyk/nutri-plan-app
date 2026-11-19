@@ -96,5 +96,16 @@ Content-Type: application/json
 }
 
 
+###
+DELETE http://localhost:8093/api/meals/4c80e9e1-8a15-4c33-8678-73ee43f5f9fe
 
 
+###
+PUT http://localhost:8093/api/meals/69bcf288-d7e3-461e-b3c5-88ae1512de28
+Content-Type: application/json
+
+{
+  "foodProductId": "9a2ee834-8255-4c7d-86ca-1bb2c8d3c20e",
+  "eatenOn": "2026-11-17",
+  "grams": 2000
+}

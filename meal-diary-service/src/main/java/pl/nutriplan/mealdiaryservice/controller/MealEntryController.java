@@ -14,6 +14,7 @@ import pl.nutriplan.mealdiaryservice.service.MealEntryService;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/meals")
@@ -46,5 +47,19 @@ public class MealEntryController {
             LocalDate date
     ) {
         return mealEntryService.getSummary(date);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMealEntry(@PathVariable(name = "id") UUID id) {
+        mealEntryService.deleteEntry(id);
+    }
+
+    @PutMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public MealEntryDto updateMealEntry(
+            @PathVariable(name = "id") UUID id,
+            @RequestBody @Valid MealEntryRequest request) {
+        return mealEntryService.editMealEntry(id, request);
     }
 }

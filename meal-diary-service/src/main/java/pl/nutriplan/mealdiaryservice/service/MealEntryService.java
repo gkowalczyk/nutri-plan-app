@@ -2,7 +2,10 @@ package pl.nutriplan.mealdiaryservice.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import pl.nutriplan.mealdiaryservice.client.FoodPortionResponse;
 import pl.nutriplan.mealdiaryservice.client.FoodServiceClient;
 import pl.nutriplan.mealdiaryservice.dto.DailySummaryDto;
@@ -15,6 +18,7 @@ import pl.nutriplan.mealdiaryservice.repository.MealEntryRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -83,5 +87,40 @@ public class MealEntryService {
                 fat,
                 carbs
         );
+    }
+
+    @Transactional
+    public void deleteEntry(UUID id) {
+        MealEntry mealEntry = mealEntryRepository
+                .findByIdAndUserId(id, DEMO_USER_ID)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Not found id meal"));
+        mealEntryRepository.delete(mealEntry);
+    }
+
+    @Transactional
+    public MealEntryDto editMealEntry(UUID id, MealEntryRequest request) {
+
+        MealEntry mealEntry = mealEntryRepository.findByIdAndUserId(id, DEMO_USER_ID)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Not found id meal"
+                ));
+
+        FoodPortionResponse foodPortionResponseAfterUpdate = foodServiceClient.calculatePortion(
+                request.foodProductId(),
+                request.grams());
+
+        mealEntry.updateMealEntry(
+                request.eatenOn(),
+                foodPortionResponseAfterUpdate.productId(),
+                foodPortionResponseAfterUpdate.name(),
+                foodPortionResponseAfterUpdate.grams(),
+                foodPortionResponseAfterUpdate.calories(),
+                foodPortionResponseAfterUpdate.proteinGrams(),
+                foodPortionResponseAfterUpdate.fatGrams(),
+                foodPortionResponseAfterUpdate.carbsGrams()
+        );
+        return mealEntryMapper.toDto(mealEntry);
     }
 }
