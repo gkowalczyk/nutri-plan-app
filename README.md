@@ -1,93 +1,364 @@
-# nutri-plan-app
+# NutriPlan
 
+Aplikacja do prowadzenia dziennika żywieniowego i planowania diety, rozwijana w architekturze mikroserwisowej.
 
+Projekt łączy Java i Spring Boot z komunikacją między usługami, osobnymi bazami danych, konteneryzacją oraz wdrożeniem na VPS przez GitLab CI/CD.
 
-## Getting started
+🌐 **[Strona projektu — nutriplan.com.pl](https://nutriplan.com.pl/)**
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+> Projekt jest w trakcie rozwoju. Opis rozdziela funkcje już zaimplementowane od architektury docelowej.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Cel aplikacji
 
-## Add your files
+NutriPlan ma pomagać w kontrolowaniu codziennego odżywiania: rejestrowaniu posiłków, śledzeniu kalorii i makroskładników oraz planowaniu jadłospisów i zakupów.
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+Docelowo aplikacja będzie również analizować zdjęcia posiłków i generować propozycje planów żywieniowych z wykorzystaniem AI, uwzględniając cele i preferencje użytkownika.
 
+## Dostępne funkcje
+
+### Profil użytkownika
+
+- Pobieranie i aktualizacja profilu.
+- Przechowywanie podstawowych danych oraz celu żywieniowego.
+- Rejestrowanie pomiarów masy ciała.
+
+### Katalog produktów
+
+- Dodawanie i pobieranie produktów spożywczych.
+- Przechowywanie kalorii, białka, tłuszczów i węglowodanów na 100 g.
+- Obliczanie wartości odżywczych dla wskazanej gramatury.
+
+### Dziennik posiłków
+
+- Dodawanie porcji produktu do wybranego dnia.
+- Pobieranie wpisów według daty.
+- Edycja i usuwanie wpisów.
+- Dzienne podsumowanie kalorii i makroskładników.
+- Pobieranie wartości porcji z `food-service` przez HTTP.
+- Zapisywanie nazwy produktu i wartości porcji we wpisie, aby późniejsze zmiany katalogu nie zmieniały historii dziennika.
+
+Obecnie profil i dziennik korzystają z tymczasowego identyfikatora `demo-user`. Rozdzielenie danych na podstawie zalogowanego użytkownika jest kolejnym etapem rozwoju.
+
+## Obecna architektura
+
+Projekt jest monorepozytorium Maven zawierającym trzy niezależnie uruchamiane mikroserwisy.
+
+| Serwis | Odpowiedzialność | Port | Baza danych |
+|---|---|---:|---|
+| `profile-service` | Profil, cel żywieniowy i pomiary masy ciała | 8091 | `nutriplan_profile` |
+| `food-service` | Katalog produktów i obliczanie wartości porcji | 8092 | `nutriplan_food` |
+| `meal-diary-service` | Dziennik posiłków i podsumowania dnia | 8093 | `nutriplan_meal_diary` |
+
+Każdy serwis ma własną bazę logiczną PostgreSQL oraz własne migracje Flyway. Bazy działają na wspólnej instancji PostgreSQL.
+
+Serwisy nie odczytują bezpośrednio tabel innych usług. Dziennik pobiera dane porcji z katalogu produktów przez REST API.
+
+### Przepływ dodawania posiłku
+
+1. Klient wysyła UUID produktu, datę i gramaturę do `meal-diary-service`.
+2. Dziennik wywołuje endpoint obliczania porcji w `food-service`.
+3. Katalog zwraca nazwę produktu i wartości odżywcze dla wskazanej ilości.
+4. Dziennik zapisuje wpis we własnej bazie.
+5. API zwraca DTO zapisanego wpisu.
+
+Odczyt historycznych wpisów i obliczanie podsumowania dnia odbywają się na podstawie bazy dziennika, bez ponownego pobierania wartości z katalogu.
+
+### Organizacja kodu
+
+| Warstwa | Rola |
+|---|---|
+| Controller | Obsługa żądań HTTP i walidacja danych wejściowych |
+| Service | Logika aplikacji i granice transakcji |
+| Repository | Dostęp do bazy danych |
+| Entity | Odwzorowanie danych przechowywanych w bazie |
+| DTO | Dane wejściowe i odpowiedzi API |
+| Mapper | Mapowanie encji na DTO |
+| Client | Komunikacja HTTP z innymi mikroserwisami |
+
+## Architektura docelowa
+
+[![Docelowa architektura NutriPlan](AI Meal Planning Microservices Architecture-2026-11-19-134656.png)](AI Meal Planning Microservices Architecture-2026-11-19-134656.png)
+
+**[Otwórz diagram architektury w pełnym rozmiarze](docs/images/architecture.png)**
+
+### Użytkownik i dostęp
+
+Użytkownik będzie korzystać z frontendu PWA na komputerze lub telefonie.
+
+Reverse proxy będzie obsługiwać HTTPS i kierować ruch do odpowiednich komponentów. Keycloak będzie odpowiadać za uwierzytelnianie przez OIDC z PKCE, a API Gateway za przekazywanie żądań do mikroserwisów.
+
+### Mikroserwisy domenowe
+
+| Serwis | Docelowa odpowiedzialność |
+|---|---|
+| Profile Service | Profil, cele, preferencje, ograniczenia, pomiary i dane treningowe |
+| Food Service | Produkty, wartości odżywcze, przepisy i zapamiętane dania |
+| Meal Diary Service | Dziennik spożycia, woda i zlecanie analizy zdjęć |
+| Planning Service | Jadłospisy, porcje, zapasy i listy zakupów |
+| AI Service | Analiza zdjęć i generowanie propozycji planów |
+
+Komunikacja REST będzie obsługiwać operacje wymagające bezpośredniej odpowiedzi, np. pobieranie produktów, przepisów, celów użytkownika i aktualnego spożycia.
+
+Każda usługa zachowa własną bazę danych i odpowiedzialność za jej schemat.
+
+### Zadania AI w tle
+
+Dłuższe operacje będą wykonywane asynchronicznie z wykorzystaniem Apache Kafka.
+
+1. Meal Diary Service zapisze zdjęcie w prywatnym magazynie i opublikuje `MealPhotoUploaded`.
+2. Planning Service będzie zlecać przygotowanie propozycji przez `PlanProposalRequested`.
+3. AI Service pobierze zadanie i potrzebne dane, a następnie wywoła model przez Spring AI.
+4. Wyniki wrócą jako `MealAnalysisCompleted` lub `PlanProposalGenerated`.
+5. Po wyczerpaniu prób nieudane zadania trafią do tematów DLT.
+
+Wyniki analizy i propozycje planów będą podlegać walidacji przed zatwierdzeniem.
+
+### Stan realizacji
+
+Wdrożone są trzy podstawowe mikroserwisy: `profile-service`, `food-service` i `meal-diary-service`, wraz z bazami oraz pipeline GitLab CI/CD.
+
+Diagram przedstawia architekturę docelową. Frontend PWA, Planning Service, AI Service, przepływy Kafka, API Gateway i integracja logowania z aplikacją są planowanymi etapami rozwoju.
+
+## Technologie
+
+### Obecnie wykorzystywane
+
+| Obszar | Technologie |
+|---|---|
+| Język | Java 17 |
+| Backend | Spring Boot 4.1.2, Spring MVC |
+| Komunikacja usług | REST API, Spring RestClient |
+| Dostęp do danych | Spring Data JPA, Hibernate |
+| Baza danych | PostgreSQL |
+| Migracje schematu | Flyway |
+| Walidacja | Jakarta Bean Validation |
+| Redukcja powtarzalnego kodu | Lombok |
+| Budowanie projektu | Maven |
+| Konteneryzacja | Docker, Docker Compose |
+| Budowanie obrazów w CI | Rootless BuildKit |
+| Automatyzacja | GitLab CI/CD |
+| Rejestr obrazów | GitLab Container Registry |
+| Hosting | VPS |
+| Reverse proxy | Nginx |
+| Certyfikaty HTTPS | Let's Encrypt / Certbot |
+| Kontrola wersji | Git, GitLab, GitHub |
+
+### Planowane technologie i integracje
+
+- Frontend PWA.
+- Keycloak: OIDC i PKCE.
+- Weryfikacja tokenów i kontrola dostępu do danych użytkownika.
+- API Gateway.
+- Apache Kafka.
+- Spring AI.
+- Prywatny magazyn zdjęć.
+- Mechanizmy ponawiania zadań i tematy DLT.
+
+## GitLab CI/CD
+
+Konfiguracja znajduje się w pliku [`.gitlab-ci.yml`](.gitlab-ci.yml).
+
+Pipeline obejmuje trzy etapy: `verify`, `image` i `deploy`.
+
+### Verify — budowanie i testy
+
+- Równoległe zadania dla trzech modułów przez `parallel:matrix`.
+- Osobny kontener PostgreSQL i baza testowa dla każdego zadania.
+- Wykonanie `mvn clean verify` dla wybranego modułu oraz jego wymaganych zależności.
+- Publikowanie raportów JUnit i plików JAR jako artefaktów.
+- Cache lokalnego repozytorium Maven.
+
+Oddzielne bazy testowe zapobiegają konfliktom historii migracji Flyway między usługami.
+
+### Image — obrazy kontenerów
+
+- Etap uruchamiany dla domyślnej gałęzi.
+- Pobranie plików JAR z zadań weryfikacyjnych.
+- Budowanie trzech obrazów przez rootless BuildKit.
+- Oznaczanie obrazów pełnym SHA commita.
+- Wysyłanie obrazów do GitLab Container Registry.
+
+### Deploy — wdrożenie na VPS
+
+- Ręczne uruchomienie zadania dla domyślnej gałęzi.
+- Połączenie z VPS przez SSH.
+- Pobranie obrazów odpowiadających commitowi bieżącego pipeline.
+- Aktualizacja usług przez Docker Compose.
+- Sprawdzenie odpowiedzi HTTP każdego serwisu.
+- Zapis wersji obrazów w `.env` po poprawnym sprawdzeniu uruchomienia.
+
+`resource_group` zapobiega równoczesnemu wykonywaniu wdrożeń produkcyjnych.
+
+Obecna konfiguracja nie wykonuje automatycznego rollbacku. Jeżeli sprawdzenie uruchomienia zawiedzie, job zakończy się błędem, ale kontenery mogą już działać w nowej wersji.
+
+### Zmienne wdrożeniowe
+
+| Zmienna | Zastosowanie |
+|---|---|
+| `DEPLOY_HOST` | Adres serwera VPS |
+| `DEPLOY_USER` | Użytkownik wykonujący wdrożenie |
+| `SSH_PRIVATE_KEY` | Prywatny klucz SSH, zmienna GitLab typu File |
+| `SSH_KNOWN_HOSTS` | Zweryfikowane klucze hosta, zmienna typu File |
+| `CI_REGISTRY*` | Wbudowane zmienne GitLab do obsługi rejestru obrazów |
+
+Hasła produkcyjne i klucze prywatne są konfiguracją środowiska i nie powinny trafiać do repozytorium.
+
+## Środowisko VPS
+
+Mikroserwisy działają jako kontenery zarządzane przez Docker Compose.
+
+Konfiguracja wdrożeniowa znajduje się na serwerze w katalogu `/opt/nutriplan`:
+
+| Element | Zastosowanie |
+|---|---|
+| `compose.app.yaml` | Definicje usług i ich konfiguracja |
+| `.env` | Zmienne środowiskowe i wersje obrazów |
+| PostgreSQL | Osobne bazy mikroserwisów |
+| Nginx | Reverse proxy i HTTPS dla strony projektu |
+
+W obecnej konfiguracji kontenery aplikacji korzystają z sieci hosta. Komunikacja dziennika z katalogiem produktów odbywa się przez lokalny adres VPS.
+
+## Przykładowe API
+
+Adresy poniżej dotyczą uruchomienia lokalnego.
+
+| Metoda | Endpoint | Działanie |
+|---|---|---|
+| `GET` | `http://localhost:8092/api/foods` | Lista produktów |
+| `GET` | `http://localhost:8092/api/foods/{id}/portion?grams=150` | Obliczenie wartości porcji |
+| `POST` | `http://localhost:8093/api/meals` | Dodanie wpisu |
+| `GET` | `http://localhost:8093/api/meals?date=2026-11-17` | Wpisy z wybranego dnia |
+| `GET` | `http://localhost:8093/api/meals/summary?date=2026-11-17` | Podsumowanie dnia |
+| `PUT` | `http://localhost:8093/api/meals/{id}` | Edycja wpisu |
+| `DELETE` | `http://localhost:8093/api/meals/{id}` | Usunięcie wpisu |
+
+### Dodanie lub edycja wpisu
+
+```json
+{
+  "foodProductId": "9a2ee834-8255-4c7d-86ca-1bb2c8d3c20e",
+  "eatenOn": "2026-11-17",
+  "grams": 150
+}
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/gkowalczyk/nutri-plan-app.git
-git branch -M main
-git push -uf origin main
+
+UUID produktu należy zastąpić identyfikatorem istniejącym w używanej bazie.
+
+### Przykładowe podsumowanie dnia
+
+```json
+{
+  "date": "2026-11-17",
+  "entriesCount": 2,
+  "calories": 540.00,
+  "proteinGrams": 30.00,
+  "fatGrams": 12.00,
+  "carbsGrams": 78.00
+}
 ```
 
-## Integrate with your tools
+### Obsługa błędów połączenia z katalogiem
 
-* [Set up project integrations](https://gitlab.com/gkowalczyk/nutri-plan-app/-/settings/integrations)
+| Sytuacja | Status zwracany przez dziennik |
+|---|---|
+| Produkt nie istnieje — katalog zwraca `404` | `404 Not Found` |
+| Pusta odpowiedź katalogu | `502 Bad Gateway` |
+| Inny błąd HTTP katalogu obsługiwany przez klienta | `502 Bad Gateway` |
+| Błąd połączenia z katalogiem | `503 Service Unavailable` |
 
-## Collaborate with your team
+## Uruchomienie lokalne
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Wymagania
 
-## Test and Deploy
+- JDK 17.
+- Maven.
+- PostgreSQL.
+- Docker, jeśli baza będzie uruchamiana w kontenerze.
 
-Use the built-in continuous integration in GitLab.
+### Przygotowanie projektu
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+```bash
+git clone https://github.com/gkowalczyk/nutri-plan-app.git
+cd nutri-plan-app
+```
 
-***
+Utwórz osobne bazy PostgreSQL:
 
-# Editing this README
+- `nutriplan_profile`
+- `nutriplan_food`
+- `nutriplan_meal_diary`
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Ustaw połączenie z właściwą bazą osobno dla każdego procesu aplikacji.
 
-## Suggestions for a good README
+Przykładowe zmienne dla `meal-diary-service`:
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+```dotenv
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nutriplan_meal_diary
+SPRING_DATASOURCE_USERNAME=nutriplan
+SPRING_DATASOURCE_PASSWORD=<haslo>
+FOOD_SERVICE_BASE_URL=http://localhost:8092
+```
 
-## Name
-Choose a self-explaining name for your project.
+Adres i port PostgreSQL należy dopasować do własnego środowiska.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Konfiguracja klienta katalogu:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```properties
+food-service.base-url=${FOOD_SERVICE_BASE_URL:http://localhost:8092}
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Konfiguracja zarządzania schematem:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```properties
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.open-in-view=false
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Flyway wykonuje migracje, a Hibernate sprawdza zgodność encji ze schematem.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Uruchomienie usług
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Każde polecenie wykonaj w osobnym terminalu z odpowiednimi zmiennymi środowiskowymi.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+mvn -pl profile-service spring-boot:run
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+```bash
+mvn -pl food-service spring-boot:run
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```bash
+mvn -pl meal-diary-service spring-boot:run
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+`food-service` musi być dostępny podczas dodawania i edycji wpisów dziennika.
 
-## License
-For open source projects, say how it is licensed.
+## Plan rozwoju
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- [x] Podstawowy profil użytkownika i pomiary masy ciała.
+- [x] Katalog produktów spożywczych.
+- [x] Obliczanie wartości odżywczych porcji.
+- [x] Dodawanie, odczyt, edycja i usuwanie wpisów dziennika.
+- [x] Dzienne podsumowania kalorii i makroskładników.
+- [x] Konteneryzacja trzech mikroserwisów.
+- [x] GitLab CI/CD i wdrożenie na VPS.
+- [ ] Logowanie i rozdzielenie danych użytkowników.
+- [ ] Rozbudowa testów automatycznych.
+- [ ] Frontend PWA.
+- [ ] API Gateway.
+- [ ] Planowanie jadłospisów, zapasów i zakupów.
+- [ ] Analiza zdjęć posiłków.
+- [ ] Przetwarzanie zadań AI przez Kafka.
+- [ ] Integracje z danymi aktywności i powiadomieniami.
+
+## Repozytoria
+
+- **[GitLab](https://gitlab.com/gkowalczyk/nutri-plan-app)** — główne repozytorium i pipeline CI/CD.
+- **[GitHub](https://github.com/gkowalczyk/nutri-plan-app)** — mirror projektu.
+
+## Autor
+
+**Grzegorz Kowalczyk**
+
+Projekt rozwijany w ramach nauki projektowania, implementowania i wdrażania aplikacji mikroserwisowych.
