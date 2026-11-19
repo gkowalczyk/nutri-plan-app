@@ -77,9 +77,8 @@ Odczyt historycznych wpisów i obliczanie podsumowania dnia odbywają się na po
 
 ## Architektura docelowa
 
-[![Docelowa architektura NutriPlan](AI Meal Planning Microservices Architecture-2026-11-19-134656.png)](AI Meal Planning Microservices Architecture-2026-11-19-134656.png)
+![Docelowa architektura NutriPlan](https://github.com/gkowalczyk/nutri-plan-app/blob/main/AI%20Meal%20Planning%20Microservices%20Architecture-2026-11-19-134656.png?raw=true)
 
-**[Otwórz diagram architektury w pełnym rozmiarze](docs/images/architecture.png)**
 
 ### Użytkownik i dostęp
 
